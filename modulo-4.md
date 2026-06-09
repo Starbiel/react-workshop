@@ -9,6 +9,7 @@
 Quando desenvolvemos páginas interativas com múltiplos componentes (uma listagem de cards, modais de criação/edição e caixas de diálogo para confirmação de exclusão), surge um problema clássico: **Prop Drilling**.
 
 ### O que é Prop Drilling?
+
 Imagine que o botão de "Excluir" está dentro do componente `<TaskCard />`, mas o diálogo de confirmação de exclusão `<ConfirmDialog />` está na raiz da página `<TasksPage />`.
 Para saber qual tarefa o usuário deseja excluir e se o diálogo está aberto, você precisaria criar estados no componente pai e passá-los como propriedades (`props`) por vários níveis de componentes, mesmo aqueles que não usam esses dados diretamente.
 
@@ -199,17 +200,22 @@ Definimos a estrutura básica dos dados que serão manipulados na aplicação.
 export type TaskPriority = "LOW" | "MEDIUM" | "HIGH";
 
 export type Task = {
-  id: number;
+  id: string;
   name: string;
-  description?: string;
-  dueDate?: string;
+  description: string | null;
+  dueDate: Date | null;
   priority: TaskPriority;
 
   completed: boolean;
 
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 };
+
+export interface TaskDTO extends Omit<
+  Task,
+  "id" | "createdAt" | "updatedAt" | "completed"
+> {}
 ```
 
 ---
@@ -351,9 +357,30 @@ interface TaskCardProps {
 
   onEdit: (task: Task) => void;
   onDelete: (task: Task) => void;
+  onComplete: (task: Task) => void;
 }
 
-export function TaskCard({ task, onEdit, onDelete }: TaskCardProps) {
+//Isto pode virar um funcao auxiliar dentro de utils ou algo do tipo
+function formatDueDate(dueDate: Date | string) {
+  const dateString =
+    typeof dueDate === "string" ? dueDate : dueDate.toISOString();
+  const localDate = new Date(dateString.replace("Z", ""));
+
+  return localDate.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+export function TaskCard({
+  task,
+  onEdit,
+  onDelete,
+  onComplete,
+}: TaskCardProps) {
   const isCompleted = task.completed;
 
   const statusText = isCompleted ? "Concluída" : "Pendente";
@@ -413,16 +440,26 @@ export function TaskCard({ task, onEdit, onDelete }: TaskCardProps) {
 
         {task.dueDate && (
           <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-600">
-            Prazo: {task.dueDate}
+            Prazo:
+            {formatDueDate(task.dueDate)}
           </span>
         )}
       </div>
 
       <div className="mt-4 flex justify-end gap-2 border-t border-slate-100 pt-4">
+        {!isCompleted && (
+          <button
+            type="button"
+            onClick={() => onComplete(task)}
+            className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm font-medium text-green-700 transition hover:bg-green-100 cursor-pointer"
+          >
+            Concluir
+          </button>
+        )}
         <button
           type="button"
           onClick={() => onEdit(task)}
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+          className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 cursor-pointer"
         >
           Editar
         </button>
@@ -430,7 +467,7 @@ export function TaskCard({ task, onEdit, onDelete }: TaskCardProps) {
         <button
           type="button"
           onClick={() => onDelete(task)}
-          className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100"
+          className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100 cursor-pointer"
         >
           Excluir
         </button>
@@ -450,37 +487,43 @@ Um formulário puro, sem acesso a contextos globais, garantindo que ele possa se
 
 ```tsx
 import { useState } from "react";
-import type { Task, TaskPriority } from "../type";
+import type { Task, TaskDTO, TaskPriority } from "../type";
 
 interface TaskFormProps {
   task?: Task;
-  onSubmit: (data: TaskFormData) => void;
+  onSubmit: (data: TaskDTO) => Promise<void>;
 }
 
-export type TaskFormData = {
-  name: string;
-  description: string;
-  dueDate: string;
-  priority: TaskPriority;
-};
-
 export function TaskForm({ task, onSubmit }: TaskFormProps) {
-  const [name, setName] = useState(task?.name ?? "");
-  const [description, setDescription] = useState(task?.description ?? "");
-  const [dueDate, setDueDate] = useState(task?.dueDate ?? "");
-  const [priority, setPriority] = useState<TaskPriority>(
-    task?.priority ?? "MEDIUM",
-  );
+  const [taskData, setTaskData] = useState<TaskDTO>({
+    name: task?.name ?? "",
+    description: task?.description ?? null,
+    dueDate: task?.dueDate ?? null,
+    priority: task?.priority ?? "LOW",
+  });
+  const [loading, setLoading] = useState(false);
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  const dueDateValue = taskData.dueDate
+    ? new Date(taskData.dueDate).toISOString().slice(0, 16)
+    : "";
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    onSubmit({
-      name,
-      description,
-      dueDate,
-      priority,
-    });
+    if (loading) return;
+
+    setLoading(true);
+
+    try {
+      await onSubmit({
+        name: taskData.name,
+        description: taskData.description,
+        dueDate: taskData.dueDate,
+        priority: taskData.priority,
+      });
+    } finally {
+      setLoading(false);
+    }
   }
 
   const isEditing = !!task;
@@ -494,12 +537,13 @@ export function TaskForm({ task, onSubmit }: TaskFormProps) {
         >
           Nome da tarefa
         </label>
-
         <input
           id="name"
           type="text"
-          value={name}
-          onChange={(event) => setName(event.target.value)}
+          value={taskData.name}
+          onChange={(event) =>
+            setTaskData({ ...taskData, name: event.target.value })
+          }
           required
           className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none transition focus:border-slate-500"
           placeholder="Ex: Estudar React"
@@ -513,12 +557,13 @@ export function TaskForm({ task, onSubmit }: TaskFormProps) {
         >
           Descrição
         </label>
-
         <textarea
           id="description"
           rows={4}
-          value={description}
-          onChange={(event) => setDescription(event.target.value)}
+          value={taskData.description ?? ""}
+          onChange={(event) =>
+            setTaskData({ ...taskData, description: event.target.value })
+          }
           className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none transition focus:border-slate-500"
           placeholder="Descreva a tarefa..."
         />
@@ -529,14 +574,18 @@ export function TaskForm({ task, onSubmit }: TaskFormProps) {
           htmlFor="dueDate"
           className="mb-1 block text-sm font-medium text-slate-700"
         >
-          Data limite
+          Data e Horário Limite
         </label>
-
         <input
           id="dueDate"
-          type="date"
-          value={dueDate}
-          onChange={(event) => setDueDate(event.target.value)}
+          type="datetime-local"
+          value={dueDateValue}
+          onChange={(event) =>
+            setTaskData({
+              ...taskData,
+              dueDate: event.target.value ? new Date(event.target.value) : null,
+            })
+          }
           className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none transition focus:border-slate-500"
         />
       </div>
@@ -548,26 +597,33 @@ export function TaskForm({ task, onSubmit }: TaskFormProps) {
         >
           Prioridade
         </label>
-
         <select
           id="priority"
-          value={priority}
-          onChange={(event) => setPriority(event.target.value as TaskPriority)}
+          value={taskData.priority}
+          onChange={(event) =>
+            setTaskData({
+              ...taskData,
+              priority: event.target.value as TaskPriority,
+            })
+          }
           className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none transition focus:border-slate-500"
         >
           <option value="LOW">Baixa</option>
-
           <option value="MEDIUM">Média</option>
-
           <option value="HIGH">Alta</option>
         </select>
       </div>
 
       <button
         type="submit"
-        className="w-full rounded-lg bg-slate-900 px-4 py-2 font-medium text-white transition hover:bg-slate-800"
+        className="w-full rounded-lg bg-slate-900 px-4 py-2 font-medium text-white transition hover:bg-slate-800 cursor-pointer"
+        disabled={loading}
       >
-        {isEditing ? "Atualizar tarefa" : "Criar tarefa"}
+        {loading
+          ? "Salvando..."
+          : isEditing
+            ? "Salvar Alterações"
+            : "Criar Tarefa"}
       </button>
     </form>
   );
@@ -583,35 +639,36 @@ Este container consome dados fictícios e invoca as funções de abrir diálogos
 **`src/features/tasks/containers/ListTasks.tsx`**
 
 ```tsx
+import { useCallback } from "react";
 import { TaskCard } from "../components/TaskCard";
 import { useTaskCrud } from "../contexts/TaskCrudContext";
 import type { Task } from "../type";
 
 const mookTask: Task[] = [
   {
-    id: 1,
+    id: "1",
     name: "Task 1",
     description: "Descrição da Task 1",
-    dueDate: "2024-12-31",
+    dueDate: new Date("2026-06-12T00:00:00.000Z"),
     priority: "MEDIUM",
     completed: false,
-    createdAt: "2024-01-01T00:00:00Z",
-    updatedAt: "2024-01-01T00:00:00Z",
   },
   {
-    id: 2,
+    id: "2",
     name: "Task 2",
     description: "Descrição da Task 2",
-    dueDate: "2024-12-31",
+    dueDate: new Date("2026-06-18T20:45:00.000Z"),
     priority: "HIGH",
     completed: true,
-    createdAt: "2024-01-01T00:00:00Z",
-    updatedAt: "2024-01-01T00:00:00Z",
   },
 ];
 
 export function ListTasks() {
   const { openDeleteDialog, openEditModal } = useTaskCrud();
+
+  const handleToggleComplete = useCallback((task: Task) => {
+    // Adicionaremos em breve
+  }, []);
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-1 lg:grid-cols-1">
@@ -621,6 +678,7 @@ export function ListTasks() {
           task={task}
           onEdit={() => openEditModal(task)}
           onDelete={() => openDeleteDialog(task)}
+          onComplete={() => handleToggleComplete(task)}
         />
       ))}
     </div>
@@ -638,15 +696,24 @@ Gerencia o modal de criação/edição conectando-se diretamente ao contexto par
 
 ```tsx
 import { useCallback } from "react";
-import { TaskForm, type TaskFormData } from "../components/TaskForm";
+import { TaskForm } from "../components/TaskForm";
 import { useTaskCrud } from "../contexts/TaskCrudContext";
 import { Modal } from "../../../core/components/ui";
+import type { TaskDTO } from "../type";
 
 export function UpsertTask() {
   const { selectedTask, isFormModalOpen, clearSelection } = useTaskCrud();
 
-  const handleSubmit = useCallback((data: TaskFormData) => {
-    console.log(data);
+  const handleSubmit = useCallback(async (data: TaskDTO): Promise<void> => {
+    console.log("Enviando dados:", data);
+
+    await new Promise<void>((resolve) => {
+      setTimeout(() => {
+        resolve();
+      }, 1000);
+    });
+
+    console.log("Promise resolvida com sucesso!");
   }, []);
 
   if (!isFormModalOpen) {
@@ -679,11 +746,13 @@ Exibe o diálogo de confirmação consumindo o estado do `TaskCrudContext`.
 **`src/features/tasks/containers/DeleteTask.tsx`**
 
 ```tsx
+import { useState } from "react";
 import { ConfirmDialog } from "../../../core/components/ui";
 import { useTaskCrud } from "../contexts/TaskCrudContext";
 
 export function DeleteTask() {
   const { isDeleteDialogOpen, selectedTask, clearSelection } = useTaskCrud();
+  const [isLoading, setIsLoading] = useState(false);
 
   if (!isDeleteDialogOpen && !selectedTask) {
     return null;
@@ -702,6 +771,7 @@ export function DeleteTask() {
       cancelLabel="Cancelar"
       onConfirm={handleDelete}
       onCancel={clearSelection}
+      loading={isLoading}
     />
   );
 }
@@ -728,19 +798,15 @@ export function TasksPage() {
       <header className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-3xl font-bold text-slate-950 tracking-tight mb-2">
-            Tasks
+            Gerenciar Tarefas
           </h1>
-          <p className="text-slate-500 text-sm">
-            Aplicações escaláveis separam infraestrutura de rede, estado
-            assíncrono e interface visual.
-          </p>
         </div>
         <div>
           <button
             onClick={openCreateModal}
-            className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-md"
+            className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-md cursor-pointer"
           >
-            Create Task
+            Criar Tarefa
           </button>
         </div>
       </header>
@@ -845,12 +911,9 @@ Implemente o fluxo completo do CRUD local em sua aplicação. O seu desafio ser�
 
 ## 📚 Referências oficiais deste módulo
 
-| Tema | Link |
-| --- | --- |
-| React Context API | [Passing Data Deeply with Context](https://react.dev/learn/passing-data-deeply-with-context) |
-| useMemo & useCallback | [useMemo Reference](https://react.dev/reference/react/useMemo) \| [useCallback Reference](https://react.dev/reference/react/useCallback) |
-| custom Hooks | [Reusing Logic with Custom Hooks](https://react.dev/learn/reusing-logic-with-custom-hooks) |
-| Componentes Puros e UI | [Keeping Components Pure](https://react.dev/learn/keeping-components-pure) |
-
-
-
+| Tema                   | Link                                                                                                                                     |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| React Context API      | [Passing Data Deeply with Context](https://react.dev/learn/passing-data-deeply-with-context)                                             |
+| useMemo & useCallback  | [useMemo Reference](https://react.dev/reference/react/useMemo) \| [useCallback Reference](https://react.dev/reference/react/useCallback) |
+| custom Hooks           | [Reusing Logic with Custom Hooks](https://react.dev/learn/reusing-logic-with-custom-hooks)                                               |
+| Componentes Puros e UI | [Keeping Components Pure](https://react.dev/learn/keeping-components-pure)                                                               |
