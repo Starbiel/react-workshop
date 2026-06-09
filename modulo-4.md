@@ -37,7 +37,159 @@ Com Contexto:
 
 ---
 
-## 2. Componentes de UI Globais
+## 2. Entendendo a Context API na prática
+
+Antes de criar nosso contexto real, vamos entender **como a Context API funciona de verdade**, peça por peça.
+
+A Context API é composta por três partes que trabalham juntas:
+
+```
+creatContext()  →  cria o "canal" de comunicação
+<Provider>       →  quem distribui os dados pelo canal
+useContext()     →  quem recebe os dados do canal
+```
+
+### Parte 1 — `createContext`: criando o canal
+
+`createContext` cria um objeto de contexto. Pense nele como um **slot vazio** que será preenchido com dados mais tarde. O valor passado é apenas o valor padrão (usado quando não há Provider acima na árvore).
+
+```tsx
+import { createContext } from "react";
+
+// Criando um contexto que carregará um número
+const ContadorContext = createContext<number>(0);
+//                                     ↑ tipo   ↑ valor padrão
+```
+
+> 💡 Na prática, usamos `null` como valor padrão e validamos no hook — você verá isso em breve.
+
+---
+
+### Parte 2 — `<Provider>`: distribuindo os dados
+
+O `Provider` é um componente especial que **envolve** outros componentes e disponibiliza um valor para toda a sua subárvore. Qualquer componente dentro do Provider pode acessar esse valor.
+
+```tsx
+// O Provider "embrulha" os filhos e entrega um valor
+function App() {
+  return (
+    <ContadorContext.Provider value={42}>
+      <MeuComponente />   {/* pode acessar o valor 42 */}
+      <OutroComponente /> {/* também pode acessar o valor 42 */}
+    </ContadorContext.Provider>
+  );
+}
+```
+
+#### O que é `children`?
+
+A prop `children` é uma prop especial do React que representa **tudo que está entre as tags de abertura e fechamento** de um componente.
+
+```tsx
+// Quem usa o Provider passa os filhos normalmente:
+<TaskCrudProvider>
+  <TasksPage />     {/* ← isso é o "children" */}
+</TaskCrudProvider>
+
+// O Provider simplesmente repassa esses filhos para dentro do .Provider:
+function TaskCrudProvider({ children }: { children: ReactNode }) {
+  return (
+    <TaskCrudContext.Provider value={...}>
+      {children}  {/* ← aqui os filhos são renderizados */}
+    </TaskCrudContext.Provider>
+  );
+}
+```
+
+```
+TaskCrudProvider
+    ├── (recebe children via prop)
+    └── TaskCrudContext.Provider
+            └── {children}  ← renderiza o que foi passado entre as tags
+                    └── TasksPage
+```
+
+> 💡 `ReactNode` é o tipo TypeScript que representa qualquer coisa que o React pode renderizar: texto, elementos JSX, arrays, `null`, etc.
+
+---
+
+### Parte 3 — `useContext`: consumindo os dados
+
+`useContext` é o hook que permite **qualquer componente filho** acessar o valor do Provider mais próximo acima dele na árvore.
+
+```tsx
+import { useContext } from "react";
+
+function MeuComponente() {
+  const valor = useContext(ContadorContext);
+  return <p>O valor é: {valor}</p>; // "O valor é: 42"
+}
+```
+
+---
+
+### O padrão completo: contexto com hook customizado
+
+Na prática, nunca exportamos o contexto bruto para os componentes usarem `useContext` diretamente. Em vez disso, **criamos um hook customizado** que encapsula essa lógica e adiciona validação.
+
+```tsx
+// 1. Cria o contexto (sem exportar — é um detalhe interno)
+const ContadorContext = createContext<number | null>(null);
+
+// 2. Cria o Provider (exportado — quem "liga" o contexto na árvore)
+export function ContadorProvider({ children }: { children: ReactNode }) {
+  const [count, setCount] = useState(0);
+
+  return (
+    <ContadorContext.Provider value={count}>
+      {children}
+    </ContadorContext.Provider>
+  );
+}
+
+// 3. Cria o hook customizado (exportado — como os filhos acessam o contexto)
+export function useContador() {
+  const context = useContext(ContadorContext);
+
+  if (!context) {
+    throw new Error("useContador deve ser usado dentro de <ContadorProvider>");
+  }
+
+  return context;
+}
+```
+
+Veja como tudo se encaixa na prática:
+
+```
+<ContadorProvider>         ← Provider: distribui o estado
+  <MeuComponente />        ← usa useContador() → recebe o valor
+  <OutroComponente />      ← usa useContador() → recebe o valor
+</ContadorProvider>
+```
+
+> 💡 **Por que lançar um erro no hook?** Para garantir que o hook seja usado somente dentro de um Provider. Sem isso, o valor seria `null` e poderia causar bugs silenciosos difíceis de depurar.
+
+---
+
+### Resumo visual
+
+```
+creatContext()
+      ↓
+  [Canal vazio]
+      ↓
+<Provider value={dados}>    ← preenche o canal com dados reais
+    {children}              ← qualquer componente aqui dentro...
+      ↓
+  useContext()              ← ...pode ler o canal a qualquer momento
+```
+
+Com essa base sólida, avançamos para os componentes de UI e depois criamos nosso contexto real:
+
+---
+
+## 3. Componentes de UI Globais
 
 Para realizar nosso CRUD, precisaremos de dois componentes de interface comuns: um modal genérico e uma caixa de diálogo para confirmação de exclusão. Estes componentes residem em nosso diretório global de UI.
 
@@ -177,7 +329,7 @@ export function ConfirmDialog({
 
 ---
 
-## 3. Implementação da Feature `tasks`
+## 4. Implementação da Feature `tasks`
 
 A seguir, construiremos nossa feature de tarefas seguindo a ordem recomendada de responsabilidade única e modularização de código.
 
