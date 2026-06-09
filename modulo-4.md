@@ -382,6 +382,9 @@ export function TaskCard({
   onComplete,
 }: TaskCardProps) {
   const isCompleted = task.completed;
+  const isOverdue = task.dueDate
+    ? new Date(task.dueDate) < new Date() && !isCompleted
+    : false;
 
   const statusText = isCompleted ? "Concluída" : "Pendente";
 
@@ -439,9 +442,10 @@ export function TaskCard({
         </span>
 
         {task.dueDate && (
-          <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-600">
-            Prazo:
-            {formatDueDate(task.dueDate)}
+          <span
+            className={`rounded-full px-2 py-1 text-sm font-medium ${isOverdue ? "bg-red-100 text-red-700" : "bg-slate-100 text-slate-600"}`}
+          >
+            Prazo: {formatDueDate(task.dueDate)}
           </span>
         )}
       </div>
@@ -917,3 +921,8 @@ Implemente o fluxo completo do CRUD local em sua aplicação. O seu desafio ser�
 | useMemo & useCallback  | [useMemo Reference](https://react.dev/reference/react/useMemo) \| [useCallback Reference](https://react.dev/reference/react/useCallback) |
 | custom Hooks           | [Reusing Logic with Custom Hooks](https://react.dev/learn/reusing-logic-with-custom-hooks)                                               |
 | Componentes Puros e UI | [Keeping Components Pure](https://react.dev/learn/keeping-components-pure)                                                               |
+
+---
+
+> 🚀 **Próximo módulo:** Integração com React Query — gerenciamento de estado assíncrono (server state), cache e mutações.
+
