@@ -68,7 +68,9 @@ export function TraditionalListTasks() {
 
 ## 2. O que é o React Query e como ele funciona?
 
-O **TanStack Query (React Query)** é uma biblioteca de gerenciamento de estado assíncrono para React. Ele assume o controle do **Server State** (estado do servidor), deixando para o React apenas o **Client State** (estado visual interno como modais abertos, abas ativas, tema, etc.).
+O **TanStack Query (React Query)** é uma biblioteca que facilita o gerenciamento de dados obtidos de APIs e servidores em aplicações React. Em vez de o React controlar tanto os dados vindos do servidor quanto o estado da interface, o TanStack Query assume a responsabilidade pelos dados externos (**Server State**), cuidando de tarefas como busca, cache, atualização e sincronização dessas informações. Assim, o React pode focar apenas no **Client State**, que representa estados locais da interface, como modais abertos, abas selecionadas, campos de formulário e tema da aplicação.
+
+<img src="https://pbs.twimg.com/media/GClBNvHbgAAh1TN?format=jpg&name=small" width="300">
 
 ### Client State vs Server State
 

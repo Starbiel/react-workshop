@@ -691,8 +691,6 @@ Antes de seguir para o próximo módulo, confirme cada item:
 
 ---
 
-> 🚀 **Próximo módulo:** Componentes na prática — construindo as primeiras telas da aplicação com JSX e props.
-
 # Módulo 3 — React Router
 
 > 🎯 Objetivo: Criar navegação entre páginas sem recarregar o browser.
@@ -1115,9 +1113,6 @@ export const router = createBrowserRouter([
 
 - [ ] `createBrowserRouter` define as rotas com `children`
 - [ ] `RouterProvider` conecta o router ao React em `main.tsx`
-- [ ] No---
-
-> 🚀 **Próximo módulo:** Construindo uma página de CRUD com Contexto — gerenciamento de estado local compartilhado e criação/edição/remoção de dados.
 
 # Módulo 4 — Construindo uma página de CRUD com Contexto
 

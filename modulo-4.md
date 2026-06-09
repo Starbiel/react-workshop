@@ -31,6 +31,8 @@ Com Contexto:
       └── DeleteTask ─────────> (Consome selectedTask, isDeleteDialogOpen, closeDeleteDialog)
 ```
 
+<img src="https://rem-blog-bucket.s3.amazonaws.com/assets/dc8d1894-6944-4765-987c-b30ae3c227e3-refactor-time-jp" width="300">
+
 > 💡 **Insight-chave:** A Context API é perfeita para estados de UI locais compartilhados em uma mesma feature, evitando que o estado visual (se um modal está aberto ou não) polua componentes que não se importam com isso.
 
 ---
@@ -925,4 +927,3 @@ Implemente o fluxo completo do CRUD local em sua aplicação. O seu desafio ser�
 ---
 
 > 🚀 **Próximo módulo:** Integração com React Query — gerenciamento de estado assíncrono (server state), cache e mutações.
-
