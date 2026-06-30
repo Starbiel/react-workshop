@@ -157,8 +157,6 @@ export class AuthService {
 }
 ```
 
-> ⚠️ **Nota sobre o Mock:** O fallback agora gera um JWT real decodificável usando `btoa()` para codificar o header e o payload em Base64. Isso garante que o `decodeToken()` funcione de forma idêntica tanto com a API real quanto com a porta de escape.
-
 E a exportação centralizada no barrel de serviços:
 **`src/features/auth/services/index.ts`**
 ```typescript
@@ -249,6 +247,38 @@ export function useAuth() {
     throw new Error("useAuth deve ser utilizado dentro de um AuthProvider");
   }
   return context;
+}
+```
+
+### 💻 Passo 5: Integrando o Provedor no App (`AppProviders.tsx`)
+Para disponibilizar o estado global de login a todos os componentes do sistema, envolvemos a aplicação com o nosso `AuthProvider`.
+
+**`src/core/providers/AppProviders.tsx`**
+```tsx
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactNode } from "react";
+import { AuthProvider } from "../../features/auth";
+
+// 1. Instancia o cliente do React Query que gerencia o cache
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false, // Evita re-buscar dados ao clicar fora/dentro da janela
+      retry: 1, // Se falhar, tenta apenas mais uma vez
+    },
+  },
+});
+
+interface AppProvidersProps {
+  children: ReactNode;
+}
+
+export function AppProviders({ children }: AppProvidersProps) {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>{children}</AuthProvider>
+    </QueryClientProvider>
+  );
 }
 ```
 
@@ -406,8 +436,9 @@ apiClient.interceptors.response.use(
 
 ## 5. React Query + Autenticação
 
-Para realizar a mutação de login de forma didática com tratamento de loading, criamos o custom hook `useLogin`.
+Para conectar o React Query ao nosso fluxo de Login, utilizamos um hook de mutação (`useLogin`) e implementamos a interface visual que dispara essa mutação.
 
+### 💻 Passo 1: O Hook `useLogin`
 **`src/features/auth/hooks/useLogin.ts`**
 ```typescript
 import { useMutation } from "@tanstack/react-query";
@@ -424,6 +455,93 @@ export function useLogin() {
       login(data);
     },
   });
+}
+```
+
+### 💻 Passo 2: A Interface de Login (`LoginPage.tsx`)
+Esta página contém o formulário para receber o e-mail e senha do usuário. Ela usa o hook `useLogin` para realizar o login, redireciona o usuário para a página inicial ao obter sucesso, e desabilita o botão enquanto a mutação está sendo executada para evitar cliques duplicados.
+
+**`src/features/auth/pages/LoginPage.tsx`**
+```tsx
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useLogin } from "../hooks/useLogin";
+import { useAuth } from "../contexts/AuthContext";
+
+export function LoginPage() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
+  const { mutate: login, isPending, error } = useLogin();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate("/", { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    login(
+      { email, password },
+      {
+        onSuccess: () => navigate("/", { replace: true }),
+      }
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="text-center">
+        <h1 className="text-2xl font-bold text-slate-900">Entrar na sua conta</h1>
+        <p className="text-sm text-slate-500 mt-1">
+          Utilize <code className="bg-slate-100 px-1 py-0.5 rounded text-xs font-semibold">admin@admin.com</code> / <code className="bg-slate-100 px-1 py-0.5 rounded text-xs font-semibold">admin123</code> para testar localmente.
+        </p>
+      </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+          Credenciais inválidas ou erro de conexão.
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">E-mail</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none transition focus:border-slate-500"
+            placeholder="Ex: admin@admin.com"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Senha</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none transition focus:border-slate-500"
+            placeholder="Ex: ******"
+          />
+        </div>
+
+        <button
+          type="submit"
+          disabled={isPending}
+          className="w-full rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-medium py-2 transition disabled:opacity-50 cursor-pointer"
+        >
+          {isPending ? "Entrando..." : "Entrar"}
+        </button>
+      </form>
+    </div>
+  );
 }
 ```
 
