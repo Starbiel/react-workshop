@@ -548,3 +548,8 @@ Em seu projeto local, no arquivo **`src/features/tasks/containers/ListTasks.tsx`
 | useQuery API Reference    | [tanstack.com/query/latest/docs/framework/react/reference/useQuery](https://tanstack.com/query/latest/docs/framework/react/reference/useQuery)       |
 | useMutation API Reference | [tanstack.com/query/latest/docs/framework/react/reference/useMutation](https://tanstack.com/query/latest/docs/framework/react/reference/useMutation) |
 | Axios HTTP Client Docs    | [axios-http.com/docs/intro](https://axios-http.com/docs/intro)                                                                                       |
+
+---
+
+> 🚀 **Próximo módulo:** Autenticação e Segurança — fluxo de sessões com JWT, Guards de rota e Interceptadores do Axios.
+
